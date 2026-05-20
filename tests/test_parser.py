@@ -95,6 +95,16 @@ class ParseQuestionTests(unittest.TestCase):
         self.assertEqual(spec.cctv_id, "CCTV01")
         self.assertEqual(spec.vehicle_type, "Car")
 
+    def test_parse_unique_vehicle_list_request(self):
+        spec = parse_question(
+            "วันที่ 12 รถคันไหนวิ่งผ่านบ้างไม่ซ้ำกัน",
+            known_dates=["12-05-2026"],
+        )
+
+        self.assertEqual(spec.date, "12-05-2026")
+        self.assertTrue(spec.wants_vehicle_list)
+        self.assertFalse(spec.wants_route)
+
 
 if __name__ == "__main__":
     unittest.main()

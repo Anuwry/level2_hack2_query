@@ -46,7 +46,7 @@ class CCTVQueryEngine:
 
         routes = build_vehicle_routes(matches)
         summary = summarize_routes(routes)
-        answer = format_answer(spec, summary)
+        answer = format_answer(spec, summary, routes=routes)
         return QueryResult(spec=spec, matches=matches, routes=routes, summary=summary, answer=answer)
 
     def filter_records(self, spec: QuerySpec) -> list[CCTVRecord]:
@@ -163,6 +163,9 @@ def _format_thai_answer(spec: QuerySpec, summary: QuerySummary, routes: list[Veh
 
     if spec.wants_brand_color_breakdown:
         lines.append("ยี่ห้อ/สีที่พบ: " + _format_brand_color_items(summary, unit="คัน"))
+    if spec.wants_vehicle_list:
+        lines.append("รายการรถไม่ซ้ำ:")
+        lines.extend(_format_thai_vehicle_list(routes))
     if spec.wants_route:
         lines.append("ลำดับกล้องที่ผ่าน:")
         lines.extend(_format_thai_routes(routes))
@@ -179,6 +182,9 @@ def _format_english_answer(spec: QuerySpec, summary: QuerySummary, routes: list[
     lines = [f"Found {count} {vehicle_word} for {context}{_english_detection_note(summary)}."]
     if spec.wants_brand_color_breakdown:
         lines.append("Brand/color breakdown: " + _format_brand_color_items(summary, unit=""))
+    if spec.wants_vehicle_list:
+        lines.append("Unique vehicles:")
+        lines.extend(_format_english_vehicle_list(routes))
     if spec.wants_route:
         lines.append("Camera routes:")
         lines.extend(_format_english_routes(routes))
@@ -207,6 +213,24 @@ def _format_english_routes(routes: list[VehicleRoute]) -> list[str]:
     return [
         f"{index}. {_route_vehicle_label(route)}: {_route_path(route)} "
         f"({route.start_time}-{route.end_time}, {route.event_count} detections)"
+        for index, route in enumerate(_sort_routes(routes), start=1)
+    ]
+
+
+def _format_thai_vehicle_list(routes: list[VehicleRoute]) -> list[str]:
+    return [
+        f"{index}. {_route_vehicle_label(route)} "
+        f"เวลา {route.start_time}-{route.end_time} ผ่าน {_route_path(route)} "
+        f"(ตรวจพบ {route.event_count} ครั้ง)"
+        for index, route in enumerate(_sort_routes(routes), start=1)
+    ]
+
+
+def _format_english_vehicle_list(routes: list[VehicleRoute]) -> list[str]:
+    return [
+        f"{index}. {_route_vehicle_label(route)} "
+        f"{route.start_time}-{route.end_time} via {_route_path(route)} "
+        f"({route.event_count} detections)"
         for index, route in enumerate(_sort_routes(routes), start=1)
     ]
 

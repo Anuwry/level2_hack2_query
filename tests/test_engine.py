@@ -111,6 +111,16 @@ class CCTVQueryEngineTests(unittest.TestCase):
         self.assertEqual(result.summary.type_counts["Car"], 1)
         self.assertNotIn("Motorcycle", result.summary.type_counts)
 
+    def test_unique_vehicle_list_request_lists_vehicles_not_only_count(self):
+        result = self.engine.ask("วันที่ 12 รถคันไหนวิ่งผ่านบ้างไม่ซ้ำกัน")
+
+        self.assertTrue(result.spec.wants_vehicle_list)
+        self.assertGreater(result.count, 1)
+        self.assertIn("รายการรถไม่ซ้ำ:", result.answer)
+        self.assertIn("Toyota Red Car", result.answer)
+        self.assertIn("CCTV09 -> CCTV08 -> CCTV07 -> CCTV04", result.answer)
+        self.assertIn("Mazda Blue Car", result.answer)
+
     def test_color_filter_is_exact_not_partial(self):
         red_result = self.engine.ask("CCTV07 on 2026-05-12 red vehicles")
         green_result = self.engine.ask("CCTV07 on 2026-05-12 green vehicles")

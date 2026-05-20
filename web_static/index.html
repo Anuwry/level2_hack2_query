@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CCTV Query</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="query-pane" aria-labelledby="query-title">
+        <div class="brand-row">
+          <div>
+            <p class="eyebrow">CCTV Log Query</p>
+            <h1 id="query-title">ถามข้อมูลรถจาก CSV</h1>
+          </div>
+          <span class="status-pill" id="statusPill">Local</span>
+        </div>
+
+        <form id="queryForm" class="query-form">
+          <label for="question">คำถาม</label>
+          <textarea
+            id="question"
+            name="question"
+            rows="5"
+            autocomplete="off"
+            spellcheck="false"
+          >วันที่ 12 รถคันไหนวิ่งผ่านบ้างไม่ซ้ำกัน</textarea>
+          <div class="action-row">
+            <button type="submit" id="submitButton">Query</button>
+            <button type="button" id="clearButton" class="secondary">Clear</button>
+          </div>
+        </form>
+
+        <div class="sample-grid" aria-label="ตัวอย่างคำถาม">
+          <button type="button" data-question="วันที่ 12 มีรถ Toyota ผ่านกี่คัน">Toyota วันที่ 12</button>
+          <button type="button" data-question="12 05 2026 มี Benz เข้าออกกี่คันแล้วมีสีอะไรบ้าง">Benz สีอะไรบ้าง</button>
+          <button type="button" data-question="วันที่ 12 รถ Toyota ช่วง 22:00-23:00 เดินทางไปทางไหนบ้าง">Toyota route</button>
+          <button type="button" data-question="วันที่ 12 กล้องตัวที่ 1 มีรถส่วนบุคคลผ่านกี่คัน">CCTV01 รถส่วนบุคคล</button>
+        </div>
+      </section>
+
+      <section class="result-pane" aria-live="polite">
+        <div class="metric-strip">
+          <div>
+            <span>รถไม่ซ้ำ</span>
+            <strong id="countMetric">-</strong>
+          </div>
+          <div>
+            <span>Detections</span>
+            <strong id="eventMetric">-</strong>
+          </div>
+          <div>
+            <span>Routes</span>
+            <strong id="routeMetric">-</strong>
+          </div>
+        </div>
+
+        <div class="tabs" role="tablist" aria-label="ผลลัพธ์">
+          <button class="tab-button active" type="button" data-tab="answer">Answer</button>
+          <button class="tab-button" type="button" data-tab="summary">Summary</button>
+          <button class="tab-button" type="button" data-tab="routes">Routes</button>
+          <button class="tab-button" type="button" data-tab="json">JSON</button>
+        </div>
+
+        <section class="tab-panel active" id="answerPanel" data-panel="answer">
+          <pre id="answerOutput">ผลลัพธ์จะแสดงที่นี่</pre>
+        </section>
+
+        <section class="tab-panel" id="summaryPanel" data-panel="summary">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Brand</th>
+                  <th>Color</th>
+                  <th>Count</th>
+                </tr>
+              </thead>
+              <tbody id="summaryRows"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="tab-panel" id="routesPanel" data-panel="routes">
+          <div id="routeList" class="route-list"></div>
+        </section>
+
+        <section class="tab-panel" id="jsonPanel" data-panel="json">
+          <pre id="jsonOutput">{}</pre>
+        </section>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

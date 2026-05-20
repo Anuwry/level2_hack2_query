@@ -62,6 +62,7 @@ class QuerySpec:
     vehicle_type: str | None = None
     wants_brand_color_breakdown: bool = False
     wants_route: bool = False
+    wants_vehicle_list: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)

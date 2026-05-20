@@ -122,6 +122,7 @@ def parse_question(
     brand = _extract_brand(text, known_brands)
     wants_brand_color_breakdown = _wants_brand_color_breakdown(text)
     wants_route = _wants_route(text)
+    wants_vehicle_list = _wants_vehicle_list(text)
 
     return QuerySpec(
         raw_question=question,
@@ -137,6 +138,7 @@ def parse_question(
         vehicle_type=vehicle_type,
         wants_brand_color_breakdown=wants_brand_color_breakdown,
         wants_route=wants_route,
+        wants_vehicle_list=wants_vehicle_list,
     )
 
 
@@ -290,5 +292,26 @@ def _wants_route(text: str) -> bool:
             "ไปทางไหน",
             "ผ่านกล้องไหน",
             "ผ่านทางไหน",
+        )
+    )
+
+
+def _wants_vehicle_list(text: str) -> bool:
+    normalized_text = text.casefold()
+    return any(
+        term in normalized_text
+        for term in (
+            "คันไหน",
+            "คันใด",
+            "รถอะไรบ้าง",
+            "มีรถอะไร",
+            "รายการรถ",
+            "รายชื่อรถ",
+            "which vehicles",
+            "which cars",
+            "list vehicles",
+            "list cars",
+            "show vehicles",
+            "show cars",
         )
     )
