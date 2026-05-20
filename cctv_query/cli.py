@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 from cctv_query.engine import CCTVQueryEngine
+from cctv_query.llm_normalizer import LLMNormalizationResult, normalize_question_if_enabled
 
 
 DEFAULT_CSV = Path(__file__).resolve().parents[1] / "cctv_vehicle_log_routed.csv"
@@ -21,11 +22,16 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--question", "-q", help="Thai or English question to ask.")
     parser.add_argument("--json", action="store_true", help="Print structured JSON output.")
+    llm_group = parser.add_mutually_exclusive_group()
+    llm_group.add_argument("--llm", action="store_true", help="Normalize the question with the configured LLM first.")
+    llm_group.add_argument("--no-llm", action="store_true", help="Disable LLM normalization even if env is enabled.")
     args = parser.parse_args(argv)
+    llm_enabled = True if args.llm else False if args.no_llm else None
 
     engine = CCTVQueryEngine.from_csv(args.csv)
     if args.question:
-        _print_result(engine.ask(args.question), as_json=args.json)
+        result, normalization = _ask(engine, args.question, llm_enabled=llm_enabled)
+        _print_result(result, as_json=args.json, normalization=normalization)
         return 0
 
     print("Enter a Thai or English CCTV question. Press Enter on a blank line to exit.")
@@ -33,13 +39,34 @@ def main(argv: list[str] | None = None) -> int:
         question = input("> ").strip()
         if not question:
             return 0
-        _print_result(engine.ask(question), as_json=args.json)
+        result, normalization = _ask(engine, question, llm_enabled=llm_enabled)
+        _print_result(result, as_json=args.json, normalization=normalization)
 
 
-def _print_result(result, as_json: bool) -> None:
+def _ask(engine: CCTVQueryEngine, question: str, *, llm_enabled: bool | None):
+    normalization = normalize_question_if_enabled(
+        question,
+        known_brands=engine.known_brands,
+        known_colors=engine.known_colors,
+        known_dates=engine.known_dates,
+        enabled=llm_enabled,
+    )
+    return engine.ask(normalization.normalized_question), normalization
+
+
+def _print_result(result, as_json: bool, normalization: LLMNormalizationResult | None = None) -> None:
     if as_json:
-        print(json.dumps(result.to_dict(), ensure_ascii=False, indent=2))
+        payload = result.to_dict()
+        if normalization is not None:
+            payload["llm_normalization"] = normalization.to_dict()
+            payload["original_question"] = normalization.original_question
+            payload["normalized_question"] = normalization.normalized_question
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
+        if normalization and normalization.used and normalization.changed:
+            print(f"Normalized: {normalization.normalized_question}")
+        if normalization and normalization.error:
+            print(f"LLM normalization fallback: {normalization.error}", file=sys.stderr)
         print(result.answer)
 
 

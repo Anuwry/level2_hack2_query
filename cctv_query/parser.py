@@ -112,17 +112,20 @@ def parse_question(
 ) -> QuerySpec:
     text = question.strip()
     language = "th" if re.search(r"[\u0E00-\u0E7F]", text) else "en"
-    date = _extract_date(text, known_dates)
+    date, date_out_of_range = _extract_date(text, known_dates)
     cctv_id = _extract_cctv_id(text)
     start_time, end_time = _extract_time_range(text)
     start_seconds = time_to_seconds(start_time) if start_time else None
     end_seconds = time_to_seconds(end_time) if end_time else None
     vehicle_type = _extract_alias(text, TYPE_ALIASES)
-    color = _extract_known_phrase(text, known_colors) or _extract_alias(text, COLOR_ALIASES)
+    colors = _extract_colors(text, known_colors)
+    color = colors[0] if colors else None
     brand = _extract_brand(text, known_brands)
     wants_brand_color_breakdown = _wants_brand_color_breakdown(text)
     wants_route = _wants_route(text)
     wants_vehicle_list = _wants_vehicle_list(text)
+    wants_distinct_vehicle_count = _wants_distinct_vehicle_count(text)
+    out_of_range_fields = ("date",) if date_out_of_range else ()
 
     return QuerySpec(
         raw_question=question,
@@ -135,22 +138,28 @@ def parse_question(
         end_seconds=end_seconds,
         brand=brand,
         color=color,
+        colors=colors,
         vehicle_type=vehicle_type,
         wants_brand_color_breakdown=wants_brand_color_breakdown,
         wants_route=wants_route,
         wants_vehicle_list=wants_vehicle_list,
+        wants_distinct_vehicle_count=wants_distinct_vehicle_count,
+        out_of_range_fields=out_of_range_fields,
     )
 
 
-def _extract_date(text: str, known_dates: Iterable[str] | None = None) -> str | None:
+def _extract_date(text: str, known_dates: Iterable[str] | None = None) -> tuple[str | None, bool]:
     match = re.search(DATE_TOKEN, text)
     if match:
-        return normalize_date(_clean_date_text(match.group(0)))
+        return normalize_date(_clean_date_text(match.group(0))), False
 
     day = _extract_day_only_date(text)
     if day is None:
-        return None
-    return _resolve_day_from_known_dates(day, known_dates)
+        return None, False
+    resolved_date = _resolve_day_from_known_dates(day, known_dates)
+    if resolved_date:
+        return resolved_date, False
+    return None, _day_is_out_of_known_dates(day, known_dates)
 
 
 def _extract_day_only_date(text: str) -> int | None:
@@ -183,8 +192,15 @@ def _resolve_day_from_known_dates(day: int, known_dates: Iterable[str] | None) -
     return None
 
 
+def _day_is_out_of_known_dates(day: int, known_dates: Iterable[str] | None) -> bool:
+    if not known_dates:
+        return False
+    normalized_dates = sorted({normalize_date(date) for date in known_dates})
+    return not any(int(date.split("-", maxsplit=1)[0]) == day for date in normalized_dates)
+
+
 def _extract_cctv_id(text: str) -> str | None:
-    direct = re.search(r"\bCCTV\s*0*(\d{1,2})\b", text, flags=re.IGNORECASE)
+    direct = re.search(r"\bCCTV\s*[0oO]*(\d{1,2})\b", text, flags=re.IGNORECASE)
     if direct:
         return normalize_cctv_id(direct.group(1))
 
@@ -225,6 +241,40 @@ def _extract_known_phrase(text: str, known_values: Iterable[str] | None) -> str 
     return None
 
 
+def _extract_colors(text: str, known_colors: Iterable[str] | None) -> tuple[str, ...]:
+    colors: list[str] = []
+    for color in _extract_known_phrases(text, known_colors):
+        if color not in colors:
+            colors.append(color)
+    if colors:
+        return tuple(colors)
+
+    alias_color = _extract_alias(text, COLOR_ALIASES)
+    if alias_color and alias_color not in colors:
+        colors.append(alias_color)
+    return tuple(colors)
+
+
+def _extract_known_phrases(text: str, known_values: Iterable[str] | None) -> list[str]:
+    if not known_values:
+        return []
+
+    normalized_text = text.casefold()
+    candidates = sorted({item.strip() for item in known_values if item.strip()}, key=len, reverse=True)
+    matches: list[tuple[int, int, str]] = []
+    occupied: list[tuple[int, int]] = []
+
+    for value in candidates:
+        value_folded = value.casefold()
+        for start, end in _term_spans(normalized_text, value_folded):
+            if any(not (end <= used_start or start >= used_end) for used_start, used_end in occupied):
+                continue
+            matches.append((start, end, value))
+            occupied.append((start, end))
+
+    return [value for _, _, value in sorted(matches, key=lambda item: item[0])]
+
+
 def _extract_brand(text: str, known_brands: Iterable[str] | None) -> str | None:
     brands = [
         brand
@@ -262,9 +312,16 @@ def _brand_aliases(brand: str) -> set[str]:
 
 
 def _contains_term(normalized_text: str, normalized_term: str) -> bool:
+    return bool(_term_spans(normalized_text, normalized_term))
+
+
+def _term_spans(normalized_text: str, normalized_term: str) -> list[tuple[int, int]]:
     if re.fullmatch(r"[a-z0-9][a-z0-9\-\s]*", normalized_term):
-        return re.search(rf"(?<![a-z0-9]){re.escape(normalized_term)}(?![a-z0-9])", normalized_text) is not None
-    return normalized_term in normalized_text
+        return [
+            (match.start(), match.end())
+            for match in re.finditer(rf"(?<![a-z0-9]){re.escape(normalized_term)}(?![a-z0-9])", normalized_text)
+        ]
+    return [(match.start(), match.end()) for match in re.finditer(re.escape(normalized_term), normalized_text)]
 
 
 def _wants_brand_color_breakdown(text: str) -> bool:
@@ -313,5 +370,22 @@ def _wants_vehicle_list(text: str) -> bool:
             "list cars",
             "show vehicles",
             "show cars",
+        )
+    )
+
+
+def _wants_distinct_vehicle_count(text: str) -> bool:
+    normalized_text = text.casefold()
+    return any(
+        term in normalized_text
+        for term in (
+            "\u0e44\u0e21\u0e48\u0e0b\u0e49\u0e33",
+            "\u0e44\u0e21\u0e48\u0e0b\u0e49\u0e33\u0e01\u0e31\u0e19",
+            "distinct vehicles",
+            "distinct cars",
+            "unique vehicles",
+            "unique cars",
+            "dedupe",
+            "deduplicated",
         )
     )

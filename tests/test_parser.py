@@ -63,6 +63,15 @@ class ParseQuestionTests(unittest.TestCase):
         self.assertEqual(spec.date, "12-05-2026")
         self.assertEqual(spec.brand, "Toyota")
 
+    def test_day_only_date_outside_known_dates_is_marked_out_of_range(self):
+        spec = parse_question(
+            "วันที่ 14 มีรถผ่านกี่คัน",
+            known_dates=["10-05-2026", "12-05-2026", "13-05-2026"],
+        )
+
+        self.assertIsNone(spec.date)
+        self.assertEqual(spec.out_of_range_fields, ("date",))
+
     def test_parse_route_request(self):
         spec = parse_question(
             "วันที่ 12 รถ Toyota เดินทางไปทางไหนบ้าง",
@@ -95,6 +104,11 @@ class ParseQuestionTests(unittest.TestCase):
         self.assertEqual(spec.cctv_id, "CCTV01")
         self.assertEqual(spec.vehicle_type, "Car")
 
+    def test_parse_cctv_id_with_letter_o_typo(self):
+        spec = parse_question("CCTVO1 from 00:01:00 to 00:10:00 cars")
+
+        self.assertEqual(spec.cctv_id, "CCTV01")
+
     def test_parse_unique_vehicle_list_request(self):
         spec = parse_question(
             "วันที่ 12 รถคันไหนวิ่งผ่านบ้างไม่ซ้ำกัน",
@@ -103,7 +117,27 @@ class ParseQuestionTests(unittest.TestCase):
 
         self.assertEqual(spec.date, "12-05-2026")
         self.assertTrue(spec.wants_vehicle_list)
+        self.assertTrue(spec.wants_distinct_vehicle_count)
         self.assertFalse(spec.wants_route)
+
+    def test_parse_distinct_vehicle_count_request(self):
+        spec = parse_question(
+            "กระผมอยากทราบว่ารถ truck ในวันที่ 12 นี่มีกี่คันครับ รถไม่ซ้ำ",
+            known_dates=["12-05-2026"],
+        )
+
+        self.assertEqual(spec.date, "12-05-2026")
+        self.assertEqual(spec.vehicle_type, "Truck")
+        self.assertTrue(spec.wants_distinct_vehicle_count)
+
+    def test_parse_multiple_exact_colors(self):
+        spec = parse_question(
+            "มีรถสี Red and Red-White กี่คัน",
+            known_colors=["Red", "Red-White", "White"],
+        )
+
+        self.assertEqual(spec.colors, ("Red", "Red-White"))
+        self.assertEqual(spec.color, "Red")
 
 
 if __name__ == "__main__":

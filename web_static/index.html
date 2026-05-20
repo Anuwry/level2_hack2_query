@@ -30,6 +30,10 @@
             <button type="submit" id="submitButton">Query</button>
             <button type="button" id="clearButton" class="secondary">Clear</button>
           </div>
+          <label class="toggle-row" for="llmToggle">
+            <input type="checkbox" id="llmToggle" />
+            <span>LLM normalize</span>
+          </label>
         </form>
 
         <div class="sample-grid" aria-label="ตัวอย่างคำถาม">
@@ -38,6 +42,27 @@
           <button type="button" data-question="วันที่ 12 รถ Toyota ช่วง 22:00-23:00 เดินทางไปทางไหนบ้าง">Toyota route</button>
           <button type="button" data-question="วันที่ 12 กล้องตัวที่ 1 มีรถส่วนบุคคลผ่านกี่คัน">CCTV01 รถส่วนบุคคล</button>
         </div>
+
+        <form id="csvForm" class="csv-form">
+          <div class="section-title">
+            <h2>CSV Questions</h2>
+            <button type="button" id="loadCsvSampleButton" class="secondary compact">Sample</button>
+          </div>
+          <label for="csvFile">Upload question CSV</label>
+          <input id="csvFile" type="file" accept=".csv,text/csv" />
+          <label for="csvInput">CSV input</label>
+          <textarea
+            id="csvInput"
+            rows="8"
+            spellcheck="false"
+            placeholder="Question ID,CCTV ID,Time Range,Query"
+          ></textarea>
+          <div class="action-row">
+            <button type="submit" id="runCsvButton">Run CSV</button>
+            <button type="button" id="exportCsvButton" class="secondary" disabled>Export answers CSV</button>
+            <button type="button" id="clearCsvButton" class="secondary">Clear</button>
+          </div>
+        </form>
       </section>
 
       <section class="result-pane" aria-live="polite">
@@ -60,6 +85,7 @@
           <button class="tab-button active" type="button" data-tab="answer">Answer</button>
           <button class="tab-button" type="button" data-tab="summary">Summary</button>
           <button class="tab-button" type="button" data-tab="routes">Routes</button>
+          <button class="tab-button" type="button" data-tab="csv">CSV</button>
           <button class="tab-button" type="button" data-tab="json">JSON</button>
         </div>
 
@@ -84,6 +110,22 @@
 
         <section class="tab-panel" id="routesPanel" data-panel="routes">
           <div id="routeList" class="route-list"></div>
+        </section>
+
+        <section class="tab-panel" id="csvPanel" data-panel="csv">
+          <div class="table-wrap csv-results">
+            <table>
+              <thead>
+                <tr>
+                  <th>Question ID</th>
+                  <th>Readable answer</th>
+                  <th>CSV answer</th>
+                </tr>
+              </thead>
+              <tbody id="batchRows"></tbody>
+            </table>
+          </div>
+          <pre id="csvOutput">Question ID,Answer</pre>
         </section>
 
         <section class="tab-panel" id="jsonPanel" data-panel="json">

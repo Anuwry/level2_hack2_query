@@ -31,6 +31,7 @@ def make_records():
         CCTVRecord.from_values("12-05-2026", "CCTV08", "13:02:00", "Mercedes-Benz", "Dark Green", "Bus"),
         CCTVRecord.from_values("12-05-2026", "CCTV01", "15:00:00", "Mazda", "Blue", "Car"),
         CCTVRecord.from_values("12-05-2026", "CCTV01", "15:05:00", "Yamaha", "Blue", "Motorcycle"),
+        CCTVRecord.from_values("12-05-2026", "CCTV02", "16:00:00", "Mazda", "Red-White", "Car"),
     ]
 
 
@@ -130,9 +131,64 @@ class CCTVQueryEngineTests(unittest.TestCase):
         self.assertEqual(green_result.count, 0)
         self.assertNotIn("Metallic Green", green_result.summary.color_counts)
 
+    def test_multiple_color_filter_uses_or_with_exact_colors(self):
+        result = self.engine.ask("วันที่ 12 มีรถสี Red and Red-White กี่คัน")
+
+        self.assertEqual(result.spec.colors, ("Red", "Red-White"))
+        self.assertEqual(result.count, 7)
+        self.assertEqual(result.summary.color_counts["Red"], 5)
+        self.assertEqual(result.summary.color_counts["Red-White"], 2)
+        self.assertNotIn("White", result.summary.color_counts)
+        self.assertIn("สี Red, Red-White", result.answer)
+
+    def test_explicit_date_outside_csv_range_returns_out_of_range(self):
+        result = self.engine.ask("วันที่ 14-05-2026 มีรถผ่านกี่คัน")
+
+        self.assertTrue(result.out_of_range)
+        self.assertEqual(result.out_of_range_reasons, ("date",))
+        self.assertEqual(result.count, 0)
+        self.assertEqual(result.answer, "Question Out Of Range")
+
+    def test_day_only_date_outside_csv_range_returns_out_of_range(self):
+        result = self.engine.ask("วันที่ 14 มีรถผ่านกี่คัน")
+
+        self.assertTrue(result.out_of_range)
+        self.assertEqual(result.out_of_range_reasons, ("date",))
+        self.assertEqual(result.answer, "Question Out Of Range")
+
+    def test_cctv_outside_csv_range_returns_out_of_range(self):
+        result = self.engine.ask("CCTV99 on 2026-05-12 red vehicles")
+
+        self.assertTrue(result.out_of_range)
+        self.assertEqual(result.out_of_range_reasons, ("cctv_id",))
+        self.assertEqual(result.answer, "Question Out Of Range")
+
+    def test_distinct_vehicle_count_collapses_repeated_route_groups(self):
+        engine = CCTVQueryEngine(
+            [
+                CCTVRecord.from_values("12-05-2026", "CCTV01", "08:00:00", "Hino", "Black", "Truck"),
+                CCTVRecord.from_values("12-05-2026", "CCTV02", "08:03:00", "Hino", "Black", "Truck"),
+                CCTVRecord.from_values("12-05-2026", "CCTV03", "20:00:00", "Hino", "Black", "Truck"),
+                CCTVRecord.from_values("12-05-2026", "CCTV04", "20:05:00", "Hino", "Black", "Truck"),
+                CCTVRecord.from_values("12-05-2026", "CCTV01", "21:00:00", "Ford", "Bronze", "Truck"),
+            ]
+        )
+
+        normal_result = engine.ask("วันที่ 12 มีรถ truck กี่คัน")
+        distinct_result = engine.ask("กระผมอยากทราบว่ารถ truck ในวันที่ 12 นี่มีกี่คันครับ รถไม่ซ้ำ")
+
+        self.assertEqual(normal_result.count, 3)
+        self.assertEqual(distinct_result.count, 2)
+        self.assertEqual(len(distinct_result.routes), 3)
+        self.assertEqual(distinct_result.event_count, 5)
+        self.assertEqual(distinct_result.summary.brand_color_counts[("Hino", "Black")], 1)
+        self.assertIn("2 คันไม่ซ้ำ", distinct_result.answer)
+        self.assertIn("รวมซ้ำ 3 รายการ", distinct_result.answer)
+
     def test_returns_clear_no_match_answer(self):
         result = self.engine.ask("CCTV04 between 05:00:00 and 05:10:00 red trucks")
 
+        self.assertFalse(result.out_of_range)
         self.assertEqual(result.count, 0)
         self.assertIn("No matching records", result.answer)
 

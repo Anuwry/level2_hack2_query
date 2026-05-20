@@ -9,6 +9,7 @@ from cctv_query.parser import parse_question
 
 
 UNIQUE_VEHICLE_GAP_SECONDS = 30 * 60
+OUT_OF_RANGE_ANSWER = "Question Out Of Range"
 
 THAI_TYPE_LABELS = {
     "Car": "รถยนต์",
@@ -22,20 +23,31 @@ class CCTVQueryEngine:
     def __init__(self, records: list[CCTVRecord]):
         self.records = records
         self.known_brands = sorted({record.brand for record in records})
+        self.known_cctv_ids = sorted({record.cctv_id for record in records})
         self.known_colors = sorted({record.color for record in records})
         self.known_dates = sorted({record.date for record in records})
+        self.known_vehicle_types = sorted({record.vehicle_type for record in records})
 
     @classmethod
     def from_csv(cls, path: str | Path) -> "CCTVQueryEngine":
         return cls(load_records(path))
 
     def ask(self, question: str) -> QueryResult:
-        spec = parse_question(
-            question,
-            known_brands=self.known_brands,
-            known_colors=self.known_colors,
-            known_dates=self.known_dates,
-        )
+        try:
+            spec = parse_question(
+                question,
+                known_brands=self.known_brands,
+                known_colors=self.known_colors,
+                known_dates=self.known_dates,
+            )
+        except ValueError:
+            spec = QuerySpec(raw_question=question, language=_detect_language(question))
+            return out_of_range_result(spec, ("invalid_value",))
+
+        out_of_range_reasons = self.out_of_range_reasons(spec)
+        if out_of_range_reasons:
+            return out_of_range_result(spec, tuple(out_of_range_reasons))
+
         matches = self.filter_records(spec)
         if spec.wants_route:
             routes = self.find_routes(spec)
@@ -45,12 +57,28 @@ class CCTVQueryEngine:
             return QueryResult(spec=spec, matches=route_matches, routes=routes, summary=summary, answer=answer)
 
         routes = build_vehicle_routes(matches)
-        summary = summarize_routes(routes)
+        summary = summarize_distinct_vehicle_identities(routes) if spec.wants_distinct_vehicle_count else summarize_routes(routes)
         answer = format_answer(spec, summary, routes=routes)
         return QueryResult(spec=spec, matches=matches, routes=routes, summary=summary, answer=answer)
 
     def filter_records(self, spec: QuerySpec) -> list[CCTVRecord]:
         return [record for record in self.records if _matches(record, spec)]
+
+    def out_of_range_reasons(self, spec: QuerySpec) -> list[str]:
+        reasons = list(spec.out_of_range_fields)
+        if spec.date and spec.date not in self.known_dates:
+            _append_unique(reasons, "date")
+        if spec.cctv_id and spec.cctv_id not in self.known_cctv_ids:
+            _append_unique(reasons, "cctv_id")
+        if spec.brand and not _casefold_contains(self.known_brands, spec.brand):
+            _append_unique(reasons, "brand")
+        for color in spec.colors or ((spec.color,) if spec.color else ()):
+            if not _casefold_contains(self.known_colors, color):
+                _append_unique(reasons, "color")
+                break
+        if spec.vehicle_type and not _casefold_contains(self.known_vehicle_types, spec.vehicle_type):
+            _append_unique(reasons, "vehicle_type")
+        return reasons
 
     def find_routes(self, spec: QuerySpec) -> list[VehicleRoute]:
         return [
@@ -58,6 +86,18 @@ class CCTVQueryEngine:
             for route in build_vehicle_routes(self.records)
             if any(_matches(record, spec) for record in route.detections)
         ]
+
+
+def out_of_range_result(spec: QuerySpec, reasons: tuple[str, ...]) -> QueryResult:
+    return QueryResult(
+        spec=spec,
+        matches=[],
+        routes=[],
+        summary=summarize([]),
+        answer=OUT_OF_RANGE_ANSWER,
+        out_of_range=True,
+        out_of_range_reasons=reasons,
+    )
 
 
 def summarize(records: list[CCTVRecord], event_count: int | None = None) -> QuerySummary:
@@ -73,6 +113,28 @@ def summarize(records: list[CCTVRecord], event_count: int | None = None) -> Quer
 
 def summarize_routes(routes: list[VehicleRoute]) -> QuerySummary:
     representatives = [route.representative for route in routes]
+    return summarize(representatives, event_count=sum(route.event_count for route in routes))
+
+
+def summarize_distinct_vehicle_identities(routes: list[VehicleRoute]) -> QuerySummary:
+    earliest_by_signature: dict[tuple[str, str, str, str], CCTVRecord] = {}
+    for route in routes:
+        representative = route.representative
+        signature = _vehicle_signature(representative)
+        current = earliest_by_signature.get(signature)
+        if current is None or representative.timestamp_seconds < current.timestamp_seconds:
+            earliest_by_signature[signature] = representative
+
+    representatives = sorted(
+        earliest_by_signature.values(),
+        key=lambda record: (
+            record.date,
+            record.timestamp_seconds,
+            record.brand.casefold(),
+            record.color.casefold(),
+            record.vehicle_type.casefold(),
+        ),
+    )
     return summarize(representatives, event_count=sum(route.event_count for route in routes))
 
 
@@ -133,7 +195,9 @@ def _matches(record: CCTVRecord, spec: QuerySpec) -> bool:
         return False
     if spec.brand and record.brand.casefold() != spec.brand.casefold():
         return False
-    if spec.color and not _record_matches_color(record.color, spec.color):
+    if spec.colors and not any(_record_matches_color(record.color, color) for color in spec.colors):
+        return False
+    if not spec.colors and spec.color and not _record_matches_color(record.color, spec.color):
         return False
     if spec.start_seconds is not None and spec.end_seconds is not None:
         return _record_in_time_range(record.timestamp_seconds, spec.start_seconds, spec.end_seconds)
@@ -150,6 +214,20 @@ def _record_matches_color(record_color: str, query_color: str) -> bool:
     return record_color.casefold() == query_color.casefold()
 
 
+def _append_unique(values: list[str], value: str) -> None:
+    if value not in values:
+        values.append(value)
+
+
+def _casefold_contains(values: list[str], value: str) -> bool:
+    normalized = value.casefold()
+    return any(item.casefold() == normalized for item in values)
+
+
+def _detect_language(text: str) -> str:
+    return "th" if any("\u0E00" <= char <= "\u0E7F" for char in text) else "en"
+
+
 def _format_thai_answer(spec: QuerySpec, summary: QuerySummary, routes: list[VehicleRoute]) -> str:
     context = _thai_context(spec)
     vehicle_label = THAI_TYPE_LABELS.get(spec.vehicle_type or "", "รถ")
@@ -157,9 +235,10 @@ def _format_thai_answer(spec: QuerySpec, summary: QuerySummary, routes: list[Veh
     if count == 0:
         return f"ไม่พบข้อมูลที่ตรงกับเงื่อนไข: {context}"
 
-    lines = [f"พบ {count} คันสำหรับ {context}{_thai_detection_note(summary)}"]
+    count_label = " คันไม่ซ้ำ" if spec.wants_distinct_vehicle_count else " คัน"
+    lines = [f"พบ {count}{count_label}สำหรับ {context}{_thai_count_note(spec, summary, routes)}"]
     if spec.vehicle_type:
-        lines[0] = f"พบ{vehicle_label} {count} คันสำหรับ {context}{_thai_detection_note(summary)}"
+        lines[0] = f"พบ{vehicle_label} {count}{count_label}สำหรับ {context}{_thai_count_note(spec, summary, routes)}"
 
     if spec.wants_brand_color_breakdown:
         lines.append("ยี่ห้อ/สีที่พบ: " + _format_brand_color_items(summary, unit="คัน"))
@@ -179,7 +258,7 @@ def _format_english_answer(spec: QuerySpec, summary: QuerySummary, routes: list[
         return f"No matching records for {context}."
 
     vehicle_word = _english_vehicle_word(spec.vehicle_type, count)
-    lines = [f"Found {count} {vehicle_word} for {context}{_english_detection_note(summary)}."]
+    lines = [f"Found {count} {vehicle_word} for {context}{_english_count_note(spec, summary, routes)}."]
     if spec.wants_brand_color_breakdown:
         lines.append("Brand/color breakdown: " + _format_brand_color_items(summary, unit=""))
     if spec.wants_vehicle_list:
@@ -262,10 +341,28 @@ def _thai_detection_note(summary: QuerySummary) -> str:
     return f" (ตรวจพบ {summary.event_count} ครั้ง)"
 
 
+def _thai_count_note(spec: QuerySpec, summary: QuerySummary, routes: list[VehicleRoute]) -> str:
+    if spec.wants_distinct_vehicle_count and len(routes) != summary.unique_vehicle_count:
+        detection_note = ""
+        if summary.event_count != len(routes):
+            detection_note = f", ตรวจพบ {summary.event_count} ครั้ง"
+        return f" (รวมซ้ำ {len(routes)} รายการ{detection_note})"
+    return _thai_detection_note(summary)
+
+
 def _english_detection_note(summary: QuerySummary) -> str:
     if summary.event_count == summary.unique_vehicle_count:
         return ""
     return f" ({summary.event_count} detections)"
+
+
+def _english_count_note(spec: QuerySpec, summary: QuerySummary, routes: list[VehicleRoute]) -> str:
+    if spec.wants_distinct_vehicle_count and len(routes) != summary.unique_vehicle_count:
+        detection_note = ""
+        if summary.event_count != len(routes):
+            detection_note = f", {summary.event_count} detections"
+        return f" ({len(routes)} repeated route groups{detection_note})"
+    return _english_detection_note(summary)
 
 
 def _thai_context(spec: QuerySpec) -> str:
@@ -278,8 +375,9 @@ def _thai_context(spec: QuerySpec) -> str:
         parts.append(f"ช่วง {spec.start_time}-{spec.end_time}")
     if spec.brand:
         parts.append(f"ยี่ห้อ {spec.brand}")
-    if spec.color:
-        parts.append(f"สี {spec.color}")
+    colors = spec.colors or ((spec.color,) if spec.color else ())
+    if colors:
+        parts.append(f"สี {', '.join(colors)}")
     if spec.vehicle_type:
         parts.append(f"ประเภท {THAI_TYPE_LABELS.get(spec.vehicle_type, spec.vehicle_type)}")
     return " ".join(parts) if parts else "ข้อมูลทั้งหมด"
@@ -295,8 +393,9 @@ def _english_context(spec: QuerySpec) -> str:
         parts.append(f"from {spec.start_time} to {spec.end_time}")
     if spec.brand:
         parts.append(f"brand {spec.brand}")
-    if spec.color:
-        parts.append(f"color {spec.color}")
+    colors = spec.colors or ((spec.color,) if spec.color else ())
+    if colors:
+        parts.append(f"color {', '.join(colors)}")
     if spec.vehicle_type:
         parts.append(f"type {spec.vehicle_type}")
     return ", ".join(parts) if parts else "all records"

@@ -59,10 +59,13 @@ class QuerySpec:
     end_seconds: int | None = None
     brand: str | None = None
     color: str | None = None
+    colors: tuple[str, ...] = ()
     vehicle_type: str | None = None
     wants_brand_color_breakdown: bool = False
     wants_route: bool = False
     wants_vehicle_list: bool = False
+    wants_distinct_vehicle_count: bool = False
+    out_of_range_fields: tuple[str, ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -98,6 +101,8 @@ class QueryResult:
     routes: list["VehicleRoute"]
     summary: QuerySummary
     answer: str
+    out_of_range: bool = False
+    out_of_range_reasons: tuple[str, ...] = ()
 
     @property
     def count(self) -> int:
@@ -112,6 +117,8 @@ class QueryResult:
             "answer": self.answer,
             "count": self.count,
             "event_count": self.event_count,
+            "out_of_range": self.out_of_range,
+            "out_of_range_reasons": list(self.out_of_range_reasons),
             "query": self.spec.to_dict(),
             "summary": self.summary.to_dict(),
             "routes": [route.to_dict() for route in self.routes],

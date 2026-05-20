@@ -2,24 +2,69 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Callable
 from urllib.parse import urlparse
 
+from cctv_query.batch import answer_batch_questions, format_csv_style_answer, render_answers_csv
 from cctv_query.engine import CCTVQueryEngine
+from cctv_query.llm_normalizer import (
+    DEFAULT_LLM_BASE_URL,
+    DEFAULT_LLM_MODEL,
+    LLMNormalizationResult,
+    normalize_question_if_enabled,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CSV = PROJECT_ROOT / "cctv_vehicle_log_routed.csv"
 STATIC_DIR = PROJECT_ROOT / "web_static"
+WebNormalizer = Callable[[str, CCTVQueryEngine], LLMNormalizationResult]
 
 
-def handle_query_payload(engine: CCTVQueryEngine, payload: dict) -> dict:
+def handle_query_payload(
+    engine: CCTVQueryEngine,
+    payload: dict,
+    normalizer: WebNormalizer | None = None,
+) -> dict:
     question = str(payload.get("question", "")).strip()
     if not question:
         raise ValueError("Question is required.")
-    return engine.ask(question).to_dict()
+
+    use_llm = payload.get("use_llm")
+    llm_enabled = use_llm if isinstance(use_llm, bool) else None
+    normalization = (
+        normalizer(question, engine)
+        if normalizer is not None
+        else normalize_question_if_enabled(
+            question,
+            known_brands=engine.known_brands,
+            known_colors=engine.known_colors,
+            known_dates=engine.known_dates,
+            enabled=llm_enabled,
+        )
+    )
+    result = engine.ask(normalization.normalized_question)
+    response = result.to_dict()
+    question_id = str(payload.get("question_id", "Q1")).strip() or "Q1"
+    csv_answer = format_csv_style_answer(result, normalization.original_question)
+    response["original_question"] = normalization.original_question
+    response["normalized_question"] = normalization.normalized_question
+    response["llm_normalization"] = normalization.to_dict()
+    response["question_id"] = question_id
+    response["csv_answer"] = csv_answer
+    response["answers_csv"] = render_answers_csv([{"question_id": question_id, "csv_answer": csv_answer}])
+    return response
+
+
+def handle_batch_query_payload(engine: CCTVQueryEngine, payload: dict) -> dict:
+    csv_text = str(payload.get("csv_text", "")).strip()
+    if not csv_text:
+        raise ValueError("CSV text is required.")
+    return answer_batch_questions(engine, csv_text)
 
 
 class CCTVWebServer(ThreadingHTTPServer):
@@ -39,7 +84,15 @@ class CCTVRequestHandler(BaseHTTPRequestHandler):
             self._send_file(STATIC_DIR / "index.html")
             return
         if path == "/api/health":
-            self._send_json({"ok": True, "csv": str(self.server.csv_path)})
+            self._send_json(
+                {
+                    "ok": True,
+                    "csv": str(self.server.csv_path),
+                    "llm_enabled": _env_bool("CCTV_LLM_ENABLED"),
+                    "llm_model": os.getenv("CCTV_LLM_MODEL") or DEFAULT_LLM_MODEL,
+                    "llm_base_url": os.getenv("CCTV_LLM_BASE_URL") or DEFAULT_LLM_BASE_URL,
+                }
+            )
             return
         if path.startswith("/static/"):
             self._send_static(path.removeprefix("/static/"))
@@ -48,13 +101,16 @@ class CCTVRequestHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         path = urlparse(self.path).path
-        if path != "/api/query":
+        if path not in {"/api/query", "/api/batch-query"}:
             self._send_error(HTTPStatus.NOT_FOUND, "Not found")
             return
 
         try:
             payload = self._read_json_body()
-            response = handle_query_payload(self.server.engine, payload)
+            if path == "/api/batch-query":
+                response = handle_batch_query_payload(self.server.engine, payload)
+            else:
+                response = handle_query_payload(self.server.engine, payload)
         except ValueError as exc:
             self._send_error(HTTPStatus.BAD_REQUEST, str(exc))
             return
@@ -120,6 +176,13 @@ def _content_type(path: Path) -> str:
     if suffix == ".js":
         return "application/javascript; charset=utf-8"
     return "application/octet-stream"
+
+
+def _env_bool(name: str) -> bool:
+    value = os.getenv(name)
+    if value is None:
+        return False
+    return value.strip().casefold() in {"1", "true", "yes", "on", "llm", "enabled"}
 
 
 def run(host: str, port: int, csv_path: Path) -> None:

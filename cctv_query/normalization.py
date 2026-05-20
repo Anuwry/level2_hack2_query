@@ -19,7 +19,8 @@ def normalize_date(value: str) -> str:
 
 
 def normalize_cctv_id(value: str) -> str:
-    match = re.search(r"(?:CCTV\s*)?0*(\d{1,2})\b", value.strip(), flags=re.IGNORECASE)
+    text = value.strip().replace("O", "0").replace("o", "0")
+    match = re.search(r"(?:CCTV\s*)?0*(\d{1,2})\b", text, flags=re.IGNORECASE)
     if not match:
         raise ValueError(f"Invalid CCTV_ID '{value}'. Expected CCTV01-CCTV10.")
     number = int(match.group(1))
