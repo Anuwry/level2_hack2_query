@@ -35,6 +35,10 @@ class BatchQuestionRow:
 
 
 def parse_batch_question_csv(csv_text: str) -> list[BatchQuestionRow]:
+    space_table_rows = _parse_space_separated_question_table(csv_text)
+    if space_table_rows:
+        return space_table_rows
+
     cleaned_text = _clean_question_csv_text(csv_text)
     reader = csv.DictReader(io.StringIO(cleaned_text))
     if not reader.fieldnames:
@@ -153,7 +157,7 @@ def format_csv_style_answer(result: QueryResult, query_text: str) -> str:
         return _format_named_counts(result.summary.type_counts.items())
     if mode == "event":
         return _format_event_counts(Counter(record.event for record in result.matches))
-    return result.answer
+    return str(result.count)
 
 
 def _format_brand_color_counts(result: QueryResult) -> str:
@@ -272,6 +276,59 @@ def _normalize_loose_time(value: str) -> str:
 def _normalize_loose_cctv_id(value: str) -> str:
     text = value.strip().replace("O", "0").replace("o", "0")
     return normalize_cctv_id(text)
+
+
+def _parse_space_separated_question_table(text: str) -> list[BatchQuestionRow]:
+    rows: list[BatchQuestionRow] = []
+    in_question_table = False
+    for raw_line in text.splitlines():
+        line = raw_line.strip().rstrip(".")
+        if not line:
+            if rows:
+                break
+            continue
+        if not in_question_table:
+            if _is_space_question_header(line):
+                in_question_table = True
+                continue
+            row = _parse_space_question_row(line)
+            if row:
+                in_question_table = True
+                rows.append(row)
+            continue
+        if _is_space_answer_header(line):
+            break
+        row = _parse_space_question_row(line)
+        if row:
+            rows.append(row)
+    return rows
+
+
+def _is_space_question_header(line: str) -> bool:
+    normalized = re.sub(r"\s+", " ", line.strip().casefold())
+    return normalized == "question id cctv id time range query"
+
+
+def _is_space_answer_header(line: str) -> bool:
+    normalized = re.sub(r"\s+", " ", line.strip().casefold())
+    return normalized == "question id answer"
+
+
+def _parse_space_question_row(line: str) -> BatchQuestionRow | None:
+    time_token = r"\d{1,2}[:.]\d{1,2}(?:[:.]\d{1,2})?"
+    match = re.match(
+        rf"^(Q[\w\-]*)\s+(CCTV\s*[0-9oO]+)\s+({time_token}\s*-\s*{time_token})\s+(.+)$",
+        line,
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return None
+    return BatchQuestionRow(
+        question_id=match.group(1).strip(),
+        cctv_id=match.group(2).strip(),
+        time_range=match.group(3).strip(),
+        query=match.group(4).strip(),
+    )
 
 
 def _clean_question_csv_text(csv_text: str) -> str:

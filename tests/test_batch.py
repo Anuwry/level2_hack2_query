@@ -39,6 +39,24 @@ class BatchCsvTests(unittest.TestCase):
         self.assertEqual(parsed_csv[0]["Question ID"], "Q1")
         self.assertEqual(parsed_csv[0]["Answer"], answers["Q1"])
 
+    def test_parse_space_separated_question_answer_example(self):
+        rows = parse_batch_question_csv(_sample_space_table())
+
+        self.assertEqual([row.question_id for row in rows], ["Q1", "Q2", "Q3", "Q4"])
+        self.assertEqual(rows[0].cctv_id, "CCTV01")
+        self.assertEqual(rows[0].time_range, "0.01.00 - 0.10.00")
+        self.assertEqual(rows[0].query, "จำนวนรถยนต์แยกตามยี่ห้อและสี")
+        self.assertEqual(rows[3].query, "จำนวนรถยนต์")
+
+    def test_answer_batch_questions_outputs_plain_count_for_count_only_question(self):
+        response = answer_batch_questions(self.engine, _sample_space_table())
+        answers = {row["question_id"]: row["csv_answer"] for row in response["answers"]}
+
+        self.assertEqual(answers["Q1"], "[(Hino, Gray):1, (Honda, Gray):1, (Toyota, Gray):1, (Toyota, Red):1]")
+        self.assertEqual(answers["Q2"], "[Toyota:2, Hino:1, Honda:1]")
+        self.assertEqual(answers["Q3"], "[Gray:3, Red:1]")
+        self.assertEqual(answers["Q4"], "4")
+
     def test_answer_batch_questions_outputs_vehicle_type_breakdown(self):
         response = answer_batch_questions(
             self.engine,
@@ -199,6 +217,21 @@ def _sample_csv() -> str:
 Q1,CCTVO1,0.01.00 - 0.10.00,จำนวนรถยนต์แยกตามยี่ห้อและสี
 Q2,CCTVO1,0.01.00 - 0.10.00,จำนวนรถยนต์แยกตามยี่ห้อ
 Q3,CCTVO1,0.01.00 - 0.10.00,จำนวนรถยนต์แยกตามสี
+"""
+
+
+def _sample_space_table() -> str:
+    return """Question ID CCTV ID Time Range Query
+Q1 CCTV01 0.01.00 - 0.10.00 จำนวนรถยนต์แยกตามยี่ห้อและสี
+Q2 CCTV01 0.01.00 - 0.10.00 จำนวนรถยนต์แยกตามยี่ห้อ
+Q3 CCTV01 0.01.00 - 0.10.00 จำนวนรถยนต์แยกตามสี
+Q4 CCTV01 0.01.00 - 0.10.00 จำนวนรถยนต์
+
+Question ID    Answer
+Q1    [(Toyota, Gray):1, ...]
+Q2    [Toyota:2, ...]
+Q3    [Gray:5, ...]
+Q4    8
 """
 
 

@@ -58,6 +58,7 @@ let activeWarningKey = null;
 let suppressNextOptionalFollowUp = false;
 let pendingSummaryMode = null;
 let summaryModeOverride = null;
+let submitQuestionOnly = false;
 const acknowledgedWarningKeys = new Set();
 const csvSample = `Question ID,CCTV ID,Time Range,Query
 Q1,CCTVO1,0.01.00 - 0.10.00,จำนวนรถยนต์แยกตามยี่ห้อและสี
@@ -69,7 +70,9 @@ form.addEventListener("submit", async (event) => {
   summaryModeOverride = pendingSummaryMode;
   pendingSummaryMode = null;
   const question = questionInput.value.trim();
-  const filters = selectedFilters();
+  const questionOnlySubmit = submitQuestionOnly;
+  const filters = questionOnlySubmit ? {} : selectedFilters();
+  submitQuestionOnly = false;
   if (!question && !hasSelectedFilters(filters)) {
     renderError("กรุณากรอกคำถาม");
     return;
@@ -85,7 +88,7 @@ form.addEventListener("submit", async (event) => {
     const response = await fetch("/api/query", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ question, ...filters, use_llm: llmToggle.checked }),
+      body: JSON.stringify({ question, ...filters, use_llm: questionOnlySubmit ? false : llmToggle.checked }),
     });
     const payload = await response.json();
     if (!response.ok) {
@@ -309,6 +312,7 @@ followUpActions.addEventListener("click", (event) => {
   if (!button) {
     return;
   }
+  submitQuestionOnly = true;
   runPresetQuestion(button.dataset.followupQuestion || "", button.dataset.summaryMode || null);
 });
 
@@ -470,13 +474,17 @@ function renderFollowUpActions(result) {
 function followUpActionsForResult(result) {
   const mode = summaryModeForResult(result);
   const eventFocused = mode === "event" || mode === "camera_event" || mode === "hour_event" || Boolean(result.query?.event);
+  const withContext = (action) => ({
+    ...action,
+    question: buildFollowUpQuestion(result.query || {}, action),
+  });
   if (!eventFocused) {
     return [
       { label: "ดู Event", question: "รถทั้งหมดตาม event", mode: "event" },
       { label: "ดู Type", question: "รถทั้งหมดตามประเภทรถ", mode: "type" },
       { label: "ดู Color", question: "รถทั้งหมดตามสี", mode: "color" },
       { label: "ดู Country", question: "รถทั้งหมดตามประเทศ", mode: "origin" },
-    ];
+    ].map(withContext);
   }
 
   return [
@@ -487,7 +495,21 @@ function followUpActionsForResult(result) {
     { label: "เฉพาะ pass", question: "event pass vehicles", mode: "event" },
     { label: "entry ไม่ exit", question: "entry without exit", mode: "event" },
     { label: "entry ไม่ exit × กล้อง", question: "รถที่ entry แล้วไม่ exit แยกตามกล้อง entry", mode: "unclosed_entry_camera" },
-  ];
+  ].map(withContext);
+}
+
+function buildFollowUpQuestion(query, action) {
+  const actionQuestion = String(action.question || "").toLowerCase();
+  const inferredEvent =
+    action.event ||
+    (actionQuestion.includes("event entry") ? "entry" : "") ||
+    (actionQuestion.includes("event exit") ? "exit" : "") ||
+    (actionQuestion.includes("event pass") ? "pass" : "");
+  return buildStructuredQuestion(query, {
+    mode: action.mode,
+    event: inferredEvent,
+    unclosedEntry: action.unclosedEntry || action.mode === "unclosed_entry_camera" || actionQuestion.includes("entry without exit"),
+  });
 }
 
 function followUpButtonHtml(action) {
@@ -656,6 +678,7 @@ function buildClarifiedQuestion(result, clarification, option) {
 
 function buildStructuredQuestion(query, override = {}) {
   const parts = [];
+  const replacingIntent = Boolean(override.mode || override.event || override.unclosedEntry);
   const date = override.date || query.date;
   if (date) {
     parts.push(`date ${date}`);
@@ -669,51 +692,63 @@ function buildStructuredQuestion(query, override = {}) {
   if (query.brand) {
     parts.push(`brand ${query.brand}`);
   }
-  const colors = override.colors || query.colors || (query.color ? [query.color] : []);
+  if (Array.isArray(query.brand_origins) && query.brand_origins.length) {
+    parts.push(`origin ${query.brand_origins.join(" and ")}`);
+  }
+  const queryColors = Array.isArray(query.colors) && query.colors.length ? query.colors : (query.color ? [query.color] : []);
+  const colors = override.colors || queryColors;
   if (colors.length) {
     parts.push(`color ${colors.join(" and ")}`);
   }
   if (query.vehicle_type) {
     parts.push(`type ${query.vehicle_type}`);
   }
-  if (query.event) {
+  if (override.event) {
+    parts.push(`event ${override.event}`);
+  } else if (!replacingIntent && query.event) {
     parts.push(`event ${query.event}`);
   }
-  if (Array.isArray(query.events) && query.events.length) {
+  if (!replacingIntent && Array.isArray(query.events) && query.events.length) {
     parts.push(`events ${query.events.join(" and ")}`);
   }
   if (query.wants_distinct_vehicle_count) {
     parts.push("distinct vehicles");
   }
-  if (query.wants_unclosed_entry_count) {
+  if (override.unclosedEntry && override.mode !== "unclosed_entry_camera") {
+    parts.push("entry without exit");
+  } else if (!replacingIntent && query.wants_unclosed_entry_count) {
     parts.push("entry without exit");
   }
-  if (query.wants_event_breakdown) {
+  if (!replacingIntent && query.wants_event_breakdown) {
     parts.push("by event");
   }
-  if (query.wants_peak_hour) {
+  if (!replacingIntent && query.wants_peak_hour) {
     parts.push("busiest hour");
   }
-  if (query.wants_peak_camera) {
+  if (!replacingIntent && query.wants_peak_camera) {
     parts.push("busiest camera");
   }
-  if (query.wants_hour_breakdown) {
+  if (!replacingIntent && query.wants_hour_breakdown) {
     parts.push("by hour");
   }
-  if (query.wants_camera_breakdown) {
+  if (!replacingIntent && query.wants_camera_breakdown) {
     parts.push("by camera");
   }
-  if (query.wants_vehicle_list) {
+  if (!replacingIntent && query.wants_vehicle_list) {
     parts.push("list vehicles");
   }
-  if (query.wants_route) {
+  if (!replacingIntent && query.wants_route) {
     parts.push("route");
   }
-  if (Array.isArray(query.cross_breakdowns) && query.cross_breakdowns.length) {
+  if (override.mode && !override.event && !(override.unclosedEntry && override.mode === "event")) {
+    parts.push(followUpModeQuestionPhrase(override.mode));
+  } else if (!replacingIntent && Array.isArray(query.cross_breakdowns) && query.cross_breakdowns.length) {
     parts.push(crossBreakdownQuestionPhrase(query.cross_breakdowns[0]));
-  } else if (query.wants_origin_brand_breakdown) {
+  } else if (!replacingIntent && query.wants_origin_brand_breakdown) {
     parts.push("by country and brand");
-  } else if (query.wants_brand_color_breakdown) {
+  } else if (!replacingIntent && query.wants_origin_breakdown) {
+    parts.push("by country");
+  } else if (!replacingIntent && query.wants_brand_color_breakdown) {
     parts.push("by brand and color");
   }
   return parts.join(" ") || query.raw_question || questionInput.value.trim();
@@ -732,6 +767,20 @@ function crossBreakdownQuestionPhrase(name) {
     brand_route: "by brand and route",
     unclosed_entry_camera: "entry without exit by camera",
   }[name] || name;
+}
+
+function followUpModeQuestionPhrase(mode) {
+  if (CROSS_SUMMARY_MODES.has(mode)) {
+    return crossBreakdownQuestionPhrase(mode);
+  }
+  return {
+    brand: "by brand",
+    color: "by color",
+    type: "by type",
+    event: "by event",
+    origin: "by country",
+    brand_color: "by brand and color",
+  }[mode] || mode;
 }
 
 function selectedFilters() {
