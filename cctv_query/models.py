@@ -14,7 +14,7 @@ class CCTVRecord:
     brand: str
     color: str
     vehicle_type: str
-    event: str = "pass"
+    event: str = ""
     event_explicit: bool = False
     last_seen: str = ""
     last_seen_seconds: int = 0
@@ -42,6 +42,7 @@ class CCTVRecord:
         normalized_time = normalize_time(timestamp)
         normalized_last_seen = normalize_time(last_seen or timestamp)
         event_text = event.strip() if event is not None else ""
+        normalized_event = normalize_event(event_text) if event_text else ""
         return cls(
             date=normalize_date(date),
             cctv_id=normalize_cctv_id(cctv_id),
@@ -50,7 +51,7 @@ class CCTVRecord:
             brand=brand.strip(),
             color=color.strip(),
             vehicle_type=vehicle_type.strip(),
-            event=normalize_event(event_text or "pass"),
+            event=normalized_event,
             event_explicit=bool(event_text),
             last_seen=normalized_last_seen,
             last_seen_seconds=time_to_seconds(normalized_last_seen),

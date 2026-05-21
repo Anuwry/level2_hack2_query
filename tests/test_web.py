@@ -43,7 +43,7 @@ class WebApiTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             handle_query_payload(self.engine, {"question": "   "})
 
-    def test_handle_query_payload_applies_structured_filters(self):
+    def test_handle_query_payload_rejects_event_filter_when_dataset_has_no_event_data(self):
         response = handle_query_payload(
             self.engine,
             {
@@ -56,7 +56,8 @@ class WebApiTests(unittest.TestCase):
             },
         )
 
-        self.assertEqual(response["count"], 1)
+        self.assertTrue(response["out_of_range"])
+        self.assertIn("event", response["out_of_range_reasons"])
         self.assertEqual(response["query"]["date"], "12-05-2026")
         self.assertEqual(response["query"]["cctv_id"], "CCTV01")
         self.assertEqual(response["query"]["start_time"], "08:00:00")

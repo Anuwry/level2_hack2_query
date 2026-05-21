@@ -1,0 +1,8 @@
+cd path\query_mock
+
+python -m cctv_query.prepare_split_logs `
+  --log1 "{name_log_1}.csv" `
+  --log2 "{name_log_2}.csv" `
+  --output ready_csv.csv
+
+python -m cctv_query.web --host 127.0.0.1 --port 8765 --csv ready_csv.csv

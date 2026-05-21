@@ -42,7 +42,8 @@ class CCTVQueryEngine:
         self.known_cctv_ids = sorted({record.cctv_id for record in records})
         self.known_colors = sorted({record.color for record in records})
         self.known_dates = sorted({record.date for record in records})
-        self.known_events = sorted({record.event for record in records})
+        self.known_events = sorted({record.event for record in records if record.event})
+        self.has_event_data = any(record.event_explicit for record in records)
         self.known_vehicle_types = sorted({record.vehicle_type for record in records})
 
     @classmethod
@@ -225,6 +226,8 @@ class CCTVQueryEngine:
 
     def out_of_range_reasons(self, spec: QuerySpec) -> list[str]:
         reasons = list(spec.out_of_range_fields)
+        if not self.has_event_data and _requires_event_data(spec):
+            _append_unique(reasons, "event")
         if spec.date and spec.date not in self.known_dates:
             _append_unique(reasons, "date")
         for group in spec.condition_groups:
@@ -449,6 +452,17 @@ def _has_any_structured_constraint(spec: QuerySpec) -> bool:
     )
 
 
+def _requires_event_data(spec: QuerySpec) -> bool:
+    event_cross_breakdowns = {"camera_event", "hour_event", "unclosed_entry_camera"}
+    return bool(
+        spec.event
+        or spec.events
+        or spec.wants_event_breakdown
+        or spec.wants_unclosed_entry_count
+        or event_cross_breakdowns.intersection(spec.cross_breakdowns)
+    )
+
+
 def _looks_like_broad_vehicle_query(question: str) -> bool:
     text = question.casefold()
     vehicle_terms = (
@@ -489,7 +503,7 @@ def summarize(records: list[CCTVRecord], event_count: int | None = None) -> Quer
         origin_brand_counts=_origin_brand_counts(records),
         cross_counts=_record_cross_counts(records),
         type_counts=Counter(record.vehicle_type for record in records),
-        event_counts=Counter(record.event for record in records),
+        event_counts=Counter(record.event for record in records if record.event),
         event_count=len(records) if event_count is None else event_count,
         unique_vehicle_count=len(records),
     )
@@ -522,8 +536,9 @@ def _record_cross_counts(records: list[CCTVRecord]) -> dict[str, Counter[tuple[s
             counts["origin_type"][(origin, record.vehicle_type)] += 1
             counts["origin_color"][(origin, record.color)] += 1
         counts["brand_type"][(record.brand, record.vehicle_type)] += 1
-        counts["camera_event"][(record.cctv_id, record.event)] += 1
-        counts["hour_event"][(f"{hour}:00-{hour}:59", record.event)] += 1
+        if record.event:
+            counts["camera_event"][(record.cctv_id, record.event)] += 1
+            counts["hour_event"][(f"{hour}:00-{hour}:59", record.event)] += 1
         counts["color_type"][(record.color, record.vehicle_type)] += 1
     return counts
 

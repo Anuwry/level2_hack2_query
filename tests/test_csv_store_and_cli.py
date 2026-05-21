@@ -38,6 +38,8 @@ class CsvStoreAndCliTests(unittest.TestCase):
         self.assertEqual(records[0].cctv_id, "CCTV04")
         self.assertEqual(records[0].timestamp, "01:06:00")
         self.assertEqual(records[0].last_seen, "01:06:00")
+        self.assertEqual(records[0].event, "")
+        self.assertFalse(records[0].event_explicit)
 
     def test_load_records_reads_optional_event_columns(self):
         with tempfile.TemporaryDirectory() as tmpdir:
