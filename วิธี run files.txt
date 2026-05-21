@@ -1,10 +1,11 @@
 cd path\query_mock
 
-python -m cctv_query.prepare_split_logs \
-  --log1 "mock_output-log1.csv" \
-  --log2 "mock_output_2-log2.csv" \
-  --output ready_csv.csv
+python -m cctv_query.prepare_detection_logs \
+  --log1 "detections_log1.csv" \
+  --log2 "detections_log2.csv" \
+  --output detections_ready.csv \
+  --time-window-seconds 2
 
-python -m cctv_query.web --host 127.0.0.1 --port 8765 --csv ready_csv.csv
+python -m cctv_query.web --host 127.0.0.1 --port 8765 --csv detections_ready.csv
 
 แนะนำเข้าไปแล้วกด brand แล้วกดเข้า Summary แล้วจากนั้นก็ query เองได้เลย
