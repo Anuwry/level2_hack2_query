@@ -94,6 +94,8 @@ not-a-time,cam2,truck,Isuzu,White
         source = """Date,CCTV_ID,Timestamp,Track_ID,Brand,Color,Type
 22-05-2026,CCTV01,05:00:00,1,Truck,Gray,Car
 22-05-2026,CCTV02,05:00:01,2,Motorbike,Black,Car
+22-05-2026,CCTV03,05:00:02,3,Motorcycle,White,Car
+22-05-2026,CCTV04,05:00:03,4,Honda,Red,Motorbike
 """
         with tempfile.TemporaryDirectory() as tmpdir:
             input_path = Path(tmpdir) / "class_brand.csv"
@@ -104,7 +106,7 @@ not-a-time,cam2,truck,Isuzu,White
 
             records = load_records(output_path)
 
-        self.assertEqual([record.brand for record in records], ["Hino", "Motorcycle"])
+        self.assertEqual([record.brand for record in records], ["Hino", "Unknown", "Unknown", "Motorcycle"])
 
 
 if __name__ == "__main__":

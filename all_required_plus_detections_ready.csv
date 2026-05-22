@@ -3,12 +3,12 @@ Date,CCTV_ID,First_Seen,Last_Seen,Brand,Color,Type
 21-05-2026,CCTV01,16:54:10,16:55:03,Toyota,Bronze Silver,Car
 21-05-2026,CCTV02,16:54:10,16:54:10,Hino,Bronze Silver,Truck
 21-05-2026,CCTV02,16:54:10,16:54:10,Honda,White,Car
-21-05-2026,CCTV02,16:54:10,16:54:10,Motorcycle,Bronze Silver,Car
-21-05-2026,CCTV02,16:54:10,16:54:10,Motorcycle,Maroon,Car
 21-05-2026,CCTV02,16:54:10,16:54:10,Motorcycle,Unknown,Motorcycle
 21-05-2026,CCTV02,16:54:10,16:54:10,Toyota,Bronze Gray,Car
 21-05-2026,CCTV02,16:54:10,16:54:21,Toyota,Bronze Silver,Car
 21-05-2026,CCTV02,16:54:10,16:54:10,Toyota,Gray,Car
+21-05-2026,CCTV02,16:54:10,16:54:10,Unknown,Bronze Silver,Car
+21-05-2026,CCTV02,16:54:10,16:54:10,Unknown,Maroon,Car
 21-05-2026,CCTV03,16:54:10,16:54:10,Honda,Gray,Car
 21-05-2026,CCTV03,16:54:10,16:55:03,Toyota,Bronze Silver,Car
 21-05-2026,CCTV03,16:54:10,16:54:14,Toyota,Gray,Car
@@ -33,7 +33,7 @@ Date,CCTV_ID,First_Seen,Last_Seen,Brand,Color,Type
 21-05-2026,CCTV05,16:54:17,16:54:18,Honda,Bronze Silver,Car
 21-05-2026,CCTV01,16:54:18,16:54:45,Isuzu,Bronze Silver,Car
 21-05-2026,CCTV02,16:54:18,16:54:18,Honda,Gray,Car
-21-05-2026,CCTV02,16:54:18,16:54:18,Motorcycle,Gray,Car
+21-05-2026,CCTV02,16:54:18,16:54:18,Unknown,Gray,Car
 21-05-2026,CCTV04,16:54:18,16:54:34,Isuzu,Bronze Silver,Car
 21-05-2026,CCTV02,16:54:20,16:54:20,Isuzu,Bronze Silver,Car
 21-05-2026,CCTV03,16:54:20,16:54:20,Haval,Charcoal,Car
@@ -68,7 +68,7 @@ Date,CCTV_ID,First_Seen,Last_Seen,Brand,Color,Type
 21-05-2026,CCTV02,16:54:32,16:54:39,Toyota,Bronze Silver,Car
 21-05-2026,CCTV03,16:54:32,16:54:35,Toyota,Silver,Car
 21-05-2026,CCTV02,16:54:34,16:54:34,Toyota,Gray,Car
-21-05-2026,CCTV03,16:54:34,16:54:35,Motorcycle,Maroon,Car
+21-05-2026,CCTV03,16:54:34,16:54:35,Unknown,Maroon,Car
 21-05-2026,CCTV05,16:54:34,16:54:34,Toyota,Gray,Car
 21-05-2026,CCTV02,16:54:35,16:54:35,Mazda,Gray,Car
 21-05-2026,CCTV05,16:54:35,16:54:35,Mazda,Gray,Car
@@ -113,11 +113,11 @@ Date,CCTV_ID,First_Seen,Last_Seen,Brand,Color,Type
 21-05-2026,CCTV02,16:54:49,16:54:49,Toyota,Gray,Car
 21-05-2026,CCTV04,16:54:49,16:55:03,Isuzu,Bronze Silver,Car
 21-05-2026,CCTV05,16:54:49,16:54:49,Honda,White,Car
-21-05-2026,CCTV05,16:54:49,16:54:51,Motorcycle,Gray,Car
+21-05-2026,CCTV05,16:54:49,16:54:51,Unknown,Gray,Car
 21-05-2026,CCTV02,16:54:51,16:54:51,BYD,White,Car
 21-05-2026,CCTV02,16:54:51,16:54:51,Honda,Charcoal,Car
-21-05-2026,CCTV02,16:54:51,16:54:51,Motorcycle,Gray,Car
 21-05-2026,CCTV02,16:54:51,16:54:54,Motorcycle,Unknown,Motorcycle
+21-05-2026,CCTV02,16:54:51,16:54:51,Unknown,Gray,Car
 21-05-2026,CCTV03,16:54:51,16:54:51,Toyota,White,Car
 21-05-2026,CCTV05,16:54:51,16:54:51,BYD,White,Car
 21-05-2026,CCTV05,16:54:51,16:54:51,Honda,Charcoal,Car
@@ -180,14 +180,14 @@ Date,CCTV_ID,First_Seen,Last_Seen,Brand,Color,Type
 21-05-2026,CCTV02,16:55:15,16:55:20,Toyota,Bronze Silver,Car
 21-05-2026,CCTV02,16:55:15,16:55:20,Toyota,Gray,Car
 21-05-2026,CCTV02,16:55:15,16:55:15,Toyota,White,Car
-21-05-2026,CCTV03,16:55:15,16:55:15,Motorcycle,Charcoal,Car
 21-05-2026,CCTV03,16:55:15,16:55:15,Toyota,White,Car
+21-05-2026,CCTV03,16:55:15,16:55:15,Unknown,Charcoal,Car
 21-05-2026,CCTV05,16:55:15,16:55:20,Toyota,Gray,Car
 21-05-2026,CCTV05,16:55:15,16:55:15,Toyota,White,Car
 21-05-2026,CCTV01,16:55:19,16:55:19,Honda,Bronze Silver,Car
 21-05-2026,CCTV02,16:55:19,16:55:19,Honda,Maroon,Car
-21-05-2026,CCTV02,16:55:19,16:55:19,Motorcycle,Bronze Silver,Car
 21-05-2026,CCTV02,16:55:19,16:55:19,Toyota,Maroon,Car
+21-05-2026,CCTV02,16:55:19,16:55:19,Unknown,Bronze Silver,Car
 21-05-2026,CCTV05,16:55:19,16:55:19,Honda,Bronze Silver,Car
 21-05-2026,CCTV05,16:55:19,16:55:19,Honda,Maroon,Car
 21-05-2026,CCTV05,16:55:19,16:55:19,Motorcycle,Unknown,Motorcycle
@@ -212,7 +212,7 @@ Date,CCTV_ID,First_Seen,Last_Seen,Brand,Color,Type
 22-05-2026,CCTV05,05:00:23,05:00:29,Motorcycle,Gray,Motorcycle
 22-05-2026,CCTV01,05:00:25,05:00:28,Toyota,Gray,Car
 22-05-2026,CCTV01,05:00:27,05:00:28,Motorcycle,Silver,Motorcycle
-22-05-2026,CCTV04,05:00:27,05:00:28,Motorcycle,Gray,Car
+22-05-2026,CCTV04,05:00:27,05:00:28,Honda,Gray,Car
 22-05-2026,CCTV05,05:00:27,05:00:27,Toyota,Silver,Car
 22-05-2026,CCTV01,05:00:28,05:00:30,Hino,Navy Blue,Car
 22-05-2026,CCTV04,05:00:30,05:00:31,Toyota,Silver,Car

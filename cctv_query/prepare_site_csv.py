@@ -275,7 +275,7 @@ def _normalize_brand(value: str, vehicle_type: str) -> str:
     brand = _clean_label(value, default="Unknown")
     brand_key = brand.casefold()
     if brand_key in {"motorcycle", "motorbike", "motorcycles", "motorbikes", "bike"}:
-        return "Motorcycle"
+        return "Unknown"
     if brand_key in {"truck", "trucks"}:
         return "Hino"
     return brand
